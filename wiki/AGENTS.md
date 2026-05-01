@@ -137,11 +137,25 @@ mean `grep "^## \[" wiki/log.md | tail -20` always works as a recent-activity fe
 
 ## Scope of this particular wiki
 
-This wiki is seeded as a **knowledge base about the MicroCommerce codebase
-itself** — architecture, patterns, decisions, libraries. The first sources are
-the project's own docs (`CLAUDE.md`, `README.md`, `docs/`). It can be repointed
-to any domain by replacing the seed pages and editing this section; the
-operating manual above stays unchanged.
+This wiki is currently scoped to **Dapr (Distributed Application Runtime)
+documentation**, focused on a subset of building blocks:
+
+- **Pub/sub** — publish/subscribe messaging
+- **Workflow** — durable orchestration
+- **Jobs** + **Scheduler** service — scheduled triggers
+- **Secrets** — secret-store API and scoping
+
+Sources live under `raw/` as a verbatim snapshot of the upstream Dapr docs
+(see `raw/_index.md` and the `developing-applications/`, `concepts/`,
+`operations/` subtrees). Other Dapr building blocks (state, bindings,
+service invocation, actors, configuration, distributed lock, conversation,
+cryptography) are present in `raw/` but **out of scope** for ingest unless
+explicitly requested.
+
+The wiki was originally seeded around the MicroCommerce codebase; those
+seed pages (`pages/entities/microcommerce-platform.md`, etc.) are retained
+per the "don't delete without asking" rule and are flagged as legacy in
+`index.md`.
 
 ## What the LLM must NOT do
 
