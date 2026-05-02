@@ -1,0 +1,259 @@
+---
+source_url: https://fluxcd.io/flux/installation/
+fetched: 2026-05-01
+---
+
+  1. [Docs](<https://fluxcd.io/flux/>)
+  2. [Installation](<https://fluxcd.io/flux/installation/>)
+
+
+
+# Flux installation
+
+How to install the Flux CLI and the Flux controllers.
+
+The Flux project is comprised of a command-line tool (the Flux CLI) and a series of [Kubernetes controllers](</flux/components/>).
+
+To install Flux, first you'll need to download the `flux` CLI. Then using the CLI, you can deploy the Flux controllers on your clusters and configure your first GitOps delivery pipeline.
+
+## Prerequisites
+
+The person performing the Flux installation must have **cluster admin rights** for the target Kubernetes cluster.
+
+The Kubernetes cluster should match one of the following versions:
+
+Kubernetes version| Minimum required  
+---|---  
+`v1.33`| `>= 1.33.0`  
+`v1.34`| `>= 1.34.1`  
+`v1.35` and later| `>= 1.35.0`  
+  
+#### Kubernetes EOL
+
+Note that Flux may work on older versions of Kubernetes e.g. 1.32, but we don't recommend running [EOL versions](<https://endoflife.date/kubernetes>) in production nor do we offer support for these versions.
+
+## Install the Flux CLI
+
+The Flux CLI is available as a binary executable for all major platforms, the binaries can be downloaded from GitHub [releases page](<https://github.com/fluxcd/flux2/releases>).
+
+  * Homebrew
+  * Mise
+  * bash
+  * yay
+  * nix
+  * Chocolatey
+
+
+
+With [Homebrew](<https://brew.sh>) for macOS and Linux:
+```
+brew install fluxcd/tap/flux
+```
+
+With [Mise](<https://github.com/jdx/mise>) for macOS and Linux:
+```
+mise use -g flux2@latest
+```
+
+With [Bash](<https://www.gnu.org/software/bash/>) for macOS and Linux:
+```
+curl -s https://fluxcd.io/install.sh | sudo bash
+```
+
+With [yay](<https://github.com/Jguer/yay>) (or another [AUR helper](<https://wiki.archlinux.org/title/AUR_helpers>)) for Arch Linux:
+```
+yay -S flux-bin
+```
+
+With [nix-env](<https://nixos.org/manual/nix/unstable/command-ref/nix-env.html>) for NixOS:
+```
+nix-env -i fluxcd
+```
+
+With [Chocolatey](<https://chocolatey.org/>) for Windows:
+```
+choco install flux
+```
+
+To configure your shell to load `flux` [bash completions](</flux/cmd/flux_completion_bash/>) add to your profile:
+```
+. <(flux completion bash)
+```
+
+[`zsh`](</flux/cmd/flux_completion_zsh/>), [`fish`](</flux/cmd/flux_completion_fish/>), and [`powershell`](</flux/cmd/flux_completion_powershell/>) are also supported with their own sub-commands.
+
+A container image with `kubectl` and `flux` is available on DockerHub and GitHub:
+
+  * `docker.io/fluxcd/flux-cli:<version>`
+  * `ghcr.io/fluxcd/flux-cli:<version>`
+
+
+
+## Install the Flux controllers
+
+The recommended way of installing Flux on Kubernetes clusters is by using the bootstrap procedure.
+
+### Bootstrap with Flux CLI
+
+The `flux bootstrap` command deploys the Flux controllers on Kubernetes cluster(s) and configures the controllers to sync the cluster(s) state from a Git repository. Besides installing the controllers, the bootstrap command pushes the Flux manifests to the Git repository and configures Flux to update itself from Git.
+
+![bootstrap](/flux/img/flux-bootstrap-diagram.png)
+
+If the Flux controllers are present on the cluster, the bootstrap command will perform an upgrade if needed. Bootstrap is idempotent, it's safe to run the command as many times as you want.
+
+After running the bootstrap command, any operation on the cluster(s) (including Flux upgrades) can be done via Git push, without the need to connect to the Kubernetes API.
+
+#### Bootstrap providers
+
+Flux integrates with popular Git providers to simplify the initial setup of deploy keys and other authentication mechanisms:
+
+  * [Gitea](</flux/installation/bootstrap/gitea/>)
+  * [GitHub](</flux/installation/bootstrap/github/>)
+  * [GitLab](</flux/installation/bootstrap/gitlab/>)
+  * [Bitbucket](</flux/installation/bootstrap/bitbucket/>)
+  * [Azure DevOps](</flux/installation/bootstrap/azure-devops/>)
+  * [Google Cloud Source](</flux/installation/bootstrap/google-cloud-source/>)
+  * [Oracle VBS Git Repositories](<./bootstrap/oracle-cloud-git-repositories.md>)
+
+
+
+If your Git provider is not in the above list, please follow the [generic bootstrap procedure](</flux/installation/bootstrap/generic-git-server/>) which works with any Git server.
+
+#### Bootstrap configuration
+
+Various configuration options are available at bootstrap time such as:
+
+  * [Installing optional components](</flux/installation/configuration/optional-components/>)
+  * [Enforcing tenant isolation on shared clusters](</flux/installation/configuration/multitenancy/>)
+  * [Using workload identity on AWS, Azure and GCP](</flux/installation/configuration/workload-identity/>)
+
+
+
+Please see the [bootstrap configuration](</flux/installation/configuration/>) section for more examples on how to customize Flux.
+
+### Bootstrap with Terraform
+
+The bootstrap procedure can be implemented with Terraform using the Flux provider published on [registry.terraform.io](<https://registry.terraform.io/providers/fluxcd/flux>).
+
+The provider offers a Terraform resource called [flux_bootstrap_git](<https://registry.terraform.io/providers/fluxcd/flux/latest/docs/resources/bootstrap_git>) that can be used to bootstrap Flux in the same way the Flux CLI does it.
+
+Check out the examples available for the provider in the [fluxcd/terraform-provider-flux](<https://github.com/fluxcd/terraform-provider-flux>) repository.
+
+### Bootstrap with Flux Operator
+
+The [Flux Operator](<https://github.com/controlplaneio-fluxcd/flux-operator>) is an open-source project part of the [Flux ecosystem](</ecosystem/#flux-extensions>) that provides a declarative API for the lifecycle management of the Flux controllers.
+
+The operator offers an alternative to the Flux CLI bootstrap procedure, with the option to configure the reconciliation of the cluster state from Git repositories, OCI Artifacts, or S3-compatible storage.
+
+#### Install the Flux Operator
+
+Install the Flux Operator in the `flux-system` namespace, for example, using Helm:
+```
+helm install flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
+  --namespace flux-system \
+  --create-namespace
+```
+
+The Flux Operator can be installed using Helm, Terraform, OpenTofu, OperatorHub, and other methods. For more information, refer to the [installation guide](<https://fluxoperator.dev/docs/guides/install/>).
+
+#### Configure the Flux Instance
+
+Create a [FluxInstance](<https://fluxoperator.dev/docs/crd/fluxinstance/>) resource named `flux` in the `flux-system` namespace to install the latest Flux stable version and configure the Flux controllers to sync the cluster state from an OCI artifact stored in GitHub Container Registry:
+```
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: flux-system
+  annotations:
+    fluxcd.controlplane.io/reconcileEvery: "1h"
+    fluxcd.controlplane.io/reconcileTimeout: "10m"
+spec:
+  distribution:
+    version: "2.x"
+    registry: "ghcr.io/fluxcd"
+    artifact: "oci://ghcr.io/controlplaneio-fluxcd/flux-operator-manifests"
+  components:
+    - source-controller
+    - source-watcher
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+    - image-reflector-controller
+    - image-automation-controller
+  cluster:
+    type: kubernetes
+    size: medium
+    multitenant: false
+    networkPolicy: true
+    domain: "cluster.local"
+  kustomize:
+    patches:
+      - target:
+          kind: Deployment
+        patch: |
+          - op: replace
+            path: /spec/template/spec/nodeSelector
+            value:
+              kubernetes.io/os: linux
+          - op: add
+            path: /spec/template/spec/tolerations
+            value:
+              - key: "CriticalAddonsOnly"
+                operator: "Exists"          
+  sync:
+    kind: OCIRepository
+    url: "oci://ghcr.io/my-org/my-fleet-manifests"
+    ref: "latest"
+    path: "clusters/my-cluster"
+    pullSecret: "ghcr-auth"
+```
+
+> For more information on how to configure syncing from Git repositories, container registries, and S3-compatible storage, refer to the [cluster sync guide](<https://fluxoperator.dev/docs/instance/sync/>).
+
+The operator can automatically upgrade the Flux controllers and their CRDs when a new version is available. To restrict the upgrade to patch versions only, set the `distribution.version` field to e.g. `2.7.x` or to a fixed version e.g. `2.7.0` to disable automatic upgrades.
+
+The Flux Operator can take over the management of existing installations from the Flux CLI or other tools. For a step-by-step guide, refer to the [Flux Operator migration guide](<https://fluxoperator.dev/docs/guides/migration/>).
+
+### Dev install
+
+For testing purposes you can install the Flux controllers without storing their manifests in a Git repository.
+
+Install with `flux`:
+```
+flux install
+```
+
+Install with `kubectl`:
+```
+kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
+```
+
+Install with `helm`:
+```
+helm install -n flux-system --create-namespace flux oci://ghcr.io/fluxcd-community/charts/flux2
+```
+
+#### Helm support
+
+Please note that the Helm charts are maintained by the [fluxcd-community](<https://github.com/fluxcd-community/helm-charts>) on a best effort basis with no guarantees around release cadence.
+
+* * *
+
+##### [Flux bootstrap](</flux/installation/bootstrap/>)
+
+How to bootstrap Flux for various Git providers
+
+##### [Flux configuration](</flux/installation/configuration/>)
+
+How to configure Flux during bootstrap
+
+##### [Flux upgrade](</flux/installation/upgrade/>)
+
+Upgrade the Flux CLI and controllers
+
+##### [Flux uninstall](</flux/installation/uninstall/>)
+
+How to uninstall the Flux controllers
+
+Last modified 2026-04-19: [Add operator upgrade procedure (f6f1f1af)](<https://github.com/fluxcd/website/commit/f6f1f1af1f4b5fb301b3e259c0e9b179b4352c65>)
