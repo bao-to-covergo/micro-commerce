@@ -1,122 +1,133 @@
 {
   "realm": "micro-commerce",
+  "displayName": "MicroCommerce",
   "enabled": true,
   "sslRequired": "none",
-  "registrationAllowed": true,
+  "registrationAllowed": false,
   "loginWithEmailAllowed": true,
-  "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": true,
-  "editUsernameAllowed": false,
-  "bruteForceProtected": true,
   "roles": {
     "realm": [
       {
-        "name": "user",
-        "description": "Regular user role"
-      },
-      {
-        "name": "admin",
-        "description": "Administrator role"
+        "name": "platform-operator",
+        "description": "Staff running the Marketplace: can suspend Merchants and remove listings."
       }
     ]
   },
   "clients": [
     {
-      "clientId": "nextjs-app",
-      "name": "Next.js Frontend",
-      "description": "Next.js frontend application for MicroCommerce",
+      "clientId": "micro-commerce-api",
+      "name": "MicroCommerce API",
+      "description": "Token audience for the API. Never used to sign in.",
       "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "nextjs-app-secret-change-in-production",
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
+      "bearerOnly": true,
       "publicClient": false,
-      "frontchannelLogout": true,
-      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "micro-commerce-frontend",
+      "name": "MicroCommerce frontend",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "micro-commerce-frontend-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
       "attributes": {
-        "post.logout.redirect.uris": "+",
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
       },
       "protocolMappers": [
         {
-          "name": "store-api-audience",
+          "name": "api-audience",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
-          "consentRequired": false,
           "config": {
-            "included.client.audience": "store.api",
+            "included.client.audience": "micro-commerce-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
             "id.token.claim": "false",
-            "access.token.claim": "true"
+            "userinfo.token.claim": "false"
           }
         }
-      ],
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "profile",
-        "roles",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "offline_access",
-        "microprofile-jwt"
       ]
     },
     {
-      "clientId": "store.api",
-      "name": "Store API",
-      "description": ".NET API Service for MicroCommerce",
+      "clientId": "micro-commerce-tests",
+      "name": "MicroCommerce integration tests",
+      "description": "Public client with direct access grants so integration tests can get a token for a seeded user.",
       "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "store-api-secret-change-in-production",
-      "bearerOnly": true,
+      "publicClient": true,
       "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "publicClient": false,
-      "protocol": "openid-connect",
-      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "micro-commerce-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [
     {
-      "username": "testuser",
-      "email": "testuser@example.com",
+      "username": "buyer",
+      "email": "buyer@micro-commerce.test",
       "emailVerified": true,
+      "firstName": "Bea",
+      "lastName": "Buyer",
       "enabled": true,
-      "firstName": "Test",
-      "lastName": "User",
-      "credentials": [
-        {
-          "type": "password",
-          "value": "testpassword",
-          "temporary": false
-        }
-      ],
-      "realmRoles": ["user"]
+      "credentials": [{ "type": "password", "value": "buyer", "temporary": false }]
     },
     {
-      "username": "admin",
-      "email": "admin@example.com",
+      "username": "merchant",
+      "email": "merchant@micro-commerce.test",
       "emailVerified": true,
+      "firstName": "Max",
+      "lastName": "Merchant",
       "enabled": true,
-      "firstName": "Admin",
-      "lastName": "User",
-      "credentials": [
-        {
-          "type": "password",
-          "value": "adminpassword",
-          "temporary": false
-        }
-      ],
-      "realmRoles": ["user", "admin"]
+      "credentials": [{ "type": "password", "value": "merchant", "temporary": false }]
+    },
+    {
+      "username": "operator",
+      "email": "operator@micro-commerce.test",
+      "emailVerified": true,
+      "firstName": "Olive",
+      "lastName": "Operator",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "operator", "temporary": false }],
+      "realmRoles": ["platform-operator"]
     }
   ]
 }

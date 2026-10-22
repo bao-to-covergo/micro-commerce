@@ -1,214 +1,79 @@
 # CLAUDE.md
 
-## Project Overview
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-MicroCommerce is a showcase e-commerce platform demonstrating modern .NET microservices architecture. Users can browse products, add to cart, and checkout through a Next.js storefront. The backend is a modular monolith designed for gradual extraction to microservices.
+## Stack
 
-## Tech Stack
+.NET 10 · Aspire 13.6 · FastEndpoints 8 · EF Core (PostgreSQL) · Redis distributed cache · Next.js 16 frontend (pnpm). Toolchain versions are pinned in `mise.toml`; `global.json` is what the SDK resolver actually reads, so keep the two in sync (and pnpm in sync with `packageManager` in `src/micro-commerce/package.json`).
 
-- **Backend:** .NET 10, ASP.NET Core Minimal APIs, .NET Aspire 13.1.0
-- **Gateway:** YARP reverse proxy (CORS, rate limiting, auth, routing)
-- **Frontend:** Next.js 16, React 19, TypeScript 5, Tailwind CSS v4, TanStack React Query v5, Radix UI
-- **Auth:** Keycloak (backend JWT + NextAuth.js v5 frontend)
-- **Database:** PostgreSQL (schema-per-feature, shared database `appdb`)
-- **Messaging:** Azure Service Bus (MassTransit 9.0) with emulator for dev; RabbitMQ for Kubernetes deployments
-- **Patterns:** CQRS (MediatR), DDD, Event-Driven, Vertical Slice Architecture
-- **Key Libraries:** Vogen (strongly typed IDs), Ardalis.SmartEnum, Ardalis.Specification, Ardalis.GuardClauses, FluentValidation, FluentResults
+## Commands
 
-## UI Design Files (`design/`)
-
-Design files are split by page for reduced AI context. Each file is self-contained with its referenced components + shared variables.
-
-| File | Contents |
-|---|---|
-| `design/design-system.pen` | All 26 reusable components (buttons, badges, inputs, cards, nav items, etc.) |
-| `design/storefront-homepage.pen` | Homepage screen (hero, categories, featured products, footer) |
-| `design/storefront-catalog.pen` | Product catalog with filters and grid |
-| `design/storefront-product-detail.pen` | Product detail page with tabs |
-| `design/storefront-cart.pen` | Shopping cart page |
-| `design/storefront-checkout.pen` | Checkout flow |
-| `design/storefront-order-confirmation.pen` | Order confirmation page |
-| `design/storefront-order-history.pen` | Order history list |
-| `design/storefront-profile.pen` | User profile page |
-| `design/auth-login.pen` | Login/auth page |
-| `design/admin-dashboard.pen` | Admin dashboard with sidebar |
-
-Legacy monolithic file: `pencil-new.pen` (kept as reference)
-
-### Design → Code Workflow
-
-```
-"Generate React code from design/storefront-homepage.pen"
-"Create a TypeScript component from design/design-system.pen"
-"Export design/storefront-cart.pen as a Next.js page component"
-"Generate code using Shadcn UI components from design/storefront-checkout.pen"
-```
-
-## Project Structure
-
-```
-src/
-  MicroCommerce.AppHost/              # Aspire orchestrator (entry point)
-  MicroCommerce.ApiService/           # Backend API
-    Features/                         # Vertical slices
-      Catalog/                        # Products, categories, images
-      Cart/                           # Shopping cart (guest + auth)
-      Ordering/                       # Checkout, orders, saga
-      Inventory/                      # Stock management
-      Profiles/                       # User profiles, addresses, avatars
-      Reviews/                        # Product reviews (verified purchase)
-      Wishlists/                      # Authenticated user wishlists
-      Messaging/                      # Dead letter queue UI
-    Common/                           # Shared infrastructure
-      Behaviors/                      # MediatR pipeline (validation, result validation)
-      Messaging/                      # DeadLetterQueueService, DomainEventFaultConsumer
-      Persistence/                    # BaseDbContext, interceptors, conventions, OutboxDbContext
-      Exceptions/                     # Global exception handling
-      Extensions/                     # FluentResults -> HTTP mapping
-      OpenApi/                        # Vogen/SmartEnum schema transformers
-  MicroCommerce.Gateway/              # YARP reverse proxy
-  MicroCommerce.ServiceDefaults/      # Aspire cross-cutting (telemetry, health)
-  MicroCommerce.ApiService.Tests/     # xUnit integration + unit tests
-    Integration/                      # Testcontainers + WebApplicationFactory
-    Unit/                             # Domain logic unit tests
-  MicroCommerce.Web/                  # Next.js frontend
-    src/app/(storefront)/             # Customer-facing routes
-    src/app/admin/                    # Admin dashboard
-    src/components/                   # React components
-    src/hooks/                        # Custom hooks (TanStack Query)
-    src/lib/                          # API client, utilities
-    src/types/                        # Type augmentations (next-auth.d.ts)
-    src/auth.ts                       # NextAuth.js configuration
-    src/middleware.ts                  # Next.js middleware (auth route protection)
-    e2e/                              # Playwright E2E tests
-  BuildingBlocks/BuildingBlocks.Common/ # DDD primitives (aggregates, events, value objects)
-```
-
-## Build & Run
+`mise install` installs the pinned toolchain (`mise.toml` holds only tool versions and env, no tasks). Common commands:
 
 ```bash
-# Run the full stack via Aspire
-dotnet run --project src/MicroCommerce.AppHost
+aspire run                                    # whole app: Postgres, Redis, Keycloak, API, frontend + Aspire dashboard
+dotnet build
+dotnet format --verify-no-changes             # .NET lint
+pnpm --dir src/micro-commerce lint            # frontend lint
 
-# Frontend only
-cd src/MicroCommerce.Web && npm install && npm run dev
+dotnet test --solution MicroCommerce.slnx     # all tests
+dotnet test --project tests/MicroCommerce.UnitTests
+dotnet test --project tests/MicroCommerce.UnitTests --filter-method "*Negative_price_fails"
+dotnet test --project tests/MicroCommerce.FunctionalTests --filter-class "*ProductEndpointsTests"
 
-# Backend only
-dotnet run --project src/MicroCommerce.ApiService
+pnpm --dir src/micro-commerce exec playwright install chromium   # once, before the first E2E run
+pnpm --dir src/micro-commerce test:e2e        # Playwright E2E; starts or reuses `aspire run`
+pnpm --dir src/micro-commerce test:e2e e2e/products.spec.ts
 
-# Run backend tests
-dotnet test src/MicroCommerce.ApiService.Tests
-
-# Frontend linting & formatting
-cd src/MicroCommerce.Web && npm run lint
-cd src/MicroCommerce.Web && npm run format
-
-# E2E tests (requires full Aspire stack running)
-cd src/MicroCommerce.Web && npx playwright test
+dotnet ef migrations add <Name> -p src/MicroCommerce.ApiService -c AppDbContext -o Data/Migrations   # needs dotnet tool restore first
+dotnet ef migrations add <Name> -p src/MicroCommerce.ApiService -c AccountsDbContext -o Features/Accounts/Data/Migrations
+dotnet ef migrations add <Name> -p src/MicroCommerce.ApiService -c CatalogDbContext -o Features/Catalog/Data/Migrations
 ```
 
-## C# Conventions
+Tests are xUnit v3 on **Microsoft.Testing.Platform in native mode** (set in `global.json`): use `--project`/`--solution` (no positional paths), and xUnit v3 filters (`--filter-class`, `--filter-method`, `--filter-trait`, `--filter-query`) passed directly — not VSTest `--filter` and no `--` separator. Functional and integration tests need a running container runtime. `dotnet test` doesn't run the E2E suite; it runs separately.
 
-- File-scoped namespaces always
-- Primary constructors for DI
-- Explicit types over `var` (`csharp_style_var_* = false`)
-- Collection expressions `[]` over `new List<T>()`
-- Private fields: `_camelCase`
-- Record types for all DTOs and commands/queries
-- FluentValidation for input validation
-- Async/await for all I/O (no `.Result` or `.Wait()`)
-- `TreatWarningsAsErrors` enabled globally via Directory.Build.props
-- Nullable reference types enabled
-- UUID v7 for all new entity IDs: `Guid.CreateVersion7()`
-- EF Core snake_case naming convention (`UseSnakeCaseNamingConvention()`)
-- Strongly typed IDs via Vogen: `[ValueObject<Guid>] public partial record struct ProductId`
-- Domain enums via Ardalis.SmartEnum (e.g., `ProductStatus`, `OrderStatus`)
-- Complex query filtering via Ardalis.Specification
+`TreatWarningsAsErrors` is on for every project (`Directory.Build.props`). Package versions live only in `Directory.Packages.props` (central package management) — `PackageReference` items have no `Version`.
 
-## TypeScript/React Conventions
+## Architecture
 
-- TypeScript strict mode
-- Biome for linting/formatting (2-space indent)
-- File names: kebab-case (`auth-button.tsx`)
-- Components: PascalCase (`AuthButton`)
-- Path alias: `@/*` maps to `./src/*`
-- Server Components by default; `"use client"` only when needed
-- Prefer server components for data fetching
-- TanStack React Query for client-side data fetching (hooks in `src/hooks/`)
-- Use Suspense boundaries for async operations
-- Clean up all effects (return cleanup functions)
-- Stable keys for lists (never array index for dynamic lists)
-- ARIA labels on interactive elements
+- **`MicroCommerce.AppHost`** (Aspire) wires everything. Resource names here are contracts used elsewhere: the connection names `micro-commerce-db` and `redis` must match `Program.cs` (`AddNpgsqlDbContext` / `AddRedisDistributedCache`) and `ApiFixture`; the resource names `apiservice` and `keycloak` are what integration tests wait on and create clients for. The frontend gets the API address via the `API_URL` env var. Passing `--EphemeralResources=true` skips data volumes, admin UIs, persistent container lifetimes and the fixed ports; adding `--FixedPorts=true` keeps the fixed ports (Keycloak 8080, frontend 3000) with throwaway containers, which is how CI runs E2E.
+- **Identity (ADR-0002)**: Keycloak imports the `micro-commerce` realm from `src/MicroCommerce.AppHost/Realms/` on start: clients `micro-commerce-frontend` (sign-in, redirect URI `http://localhost:3000/*`), `micro-commerce-api` (the token audience) and `micro-commerce-tests` (password grant, integration tests only); the `platform-operator` realm role, emitted as a flat `roles` claim; seeded users `buyer`, `merchant`, `operator` (password = username). Keycloak runs on port 8080 and the frontend on 3000 so issuer and redirect URIs stay stable. A persistent Keycloak volume skips re-importing an existing realm, so after editing the realm file delete the `keycloak` volume.
+- **`MicroCommerce.ServiceDefaults`**: standard Aspire `AddServiceDefaults()` (OpenTelemetry, service discovery, HTTP resilience, `/health` + `/alive` — mapped only in Development).
+- **`MicroCommerce.ApiService`** is organized as vertical slices under `Features/<Area>/`:
+  - One file per endpoint holding its request record, FastEndpoints `Validator<T>` (FluentValidation), and `Endpoint` class (e.g. `Features/Products/CreateProduct.cs`). Endpoints are discovered automatically by `AddFastEndpoints()`; they inject `AppDbContext` / `IDistributedCache` via primary constructors and reply with `Send.*Async`.
+  - The entity file holds the entity, its `IEntityTypeConfiguration<T>` (picked up by `ApplyConfigurationsFromAssembly`), and the response record (`Features/Products/Product.cs`). New entities also need a `DbSet` on their module's context and a migration.
+  - Each module maps entities to responses with one Mapperly mapper, `Features/<Area>/<Area>Mapper.cs`: a `[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)] static partial class` of extension methods — `entity.ToResponse()` for loaded entities, `query.ProjectToResponse()` so read queries select only the response's columns (prefer it over materialising entities). Values that don't come from the entity are extra parameters (`account.ToMeResponse(isPlatformOperator, merchant)`). Every response member needs a source, otherwise the build fails; entity members a response doesn't carry are ignored. Don't hand-write mapping methods on response records.
+  - Value objects are Vogen types; `VogenDefaults.cs` gives them EF Core and System.Text.Json conversions and a generated OpenAPI schema transformer (wired in `Program.cs`), so they reach JSON, the database and the OpenAPI document as their primitive. Every entity ID is a typed ID in `SharedKernel` (ADR-0005), created with `XxxId.New()` (a version-7 Guid); register a new ID's converter in its context's `ConfigureConventions`. Module-specific value objects such as `ShopName` live in their module. Requests and responses use typed IDs directly (a route ID keeps its `{id:guid}` constraint). Value objects with rules stay primitives in requests, validated by FluentValidation, and handlers convert with `Xxx.From`, so invalid input is a 400, not a Vogen exception.
+  - Errors use ProblemDetails (`AddProblemDetails` + `c.Errors.UseProblemDetails()`); validation error names come back camelCased.
+  - Modules own their tables (ADR-0003). Products still use `AppDbContext` (`public` schema); the Accounts module has `AccountsDbContext` with its own `accounts` schema and migration history, and the Catalog module (`Features/Catalog/`, the Category tree so far) has `CatalogDbContext` with the `catalog` schema. Each context applies only its own feature namespace's entity configurations, so a new module gets its own context, schema and migrations.
+  - Auth: JWT bearer with `MapInboundClaims = false` (claims keep their token names: `sub`, `email`, `name`, `roles`). The authority comes from `Authentication:Schemes:Bearer:Authority`, which the AppHost sets. Endpoints require a token unless they call `AllowAnonymous()`. `CurrentAccount.GetOrCreateAsync(User)` maps the token subject to an Account, creating it on first use. `AuthPolicies.PlatformOperator` is the operator policy.
+  - Route groups (FastEndpoints `Group<T>()`): `/merchant/*` (`MerchantCentre`: the signed-in Account's own Merchant, from `CurrentMerchant`, never from the route or body; 403 without one), `/ops/*` (`PlatformOperations`: Platform Operator policy, 403/401 for anyone else), `/storefront/*` (`Storefront`: anonymous).
+  - In Development the API runs `Database.MigrateAsync()` on startup, seeds a starter Category tree into an empty one (`StarterCategories`), and serves Scalar at `/scalar/v1` and OpenAPI at `/openapi/v1.json`. `AppDbContextFactory` / `AccountsDbContextFactory` / `CatalogDbContextFactory` exist only for `dotnet ef` design-time.
+- **`src/micro-commerce`** — Next.js 16 / React 19 with the React Compiler and Tailwind 4. `output: "standalone"` in `next.config.ts` is required by Aspire's `AddNextJsApp`. Sign-in uses Auth.js (`next-auth` v5, `src/auth.ts`) with the Keycloak provider. `src/proxy.ts` forwards `/api/*` to the API with the session's access token, except Auth.js's own `/api/auth/*`. Server code calls the API with `session.accessToken`. Its `AGENTS.md` applies: this Next.js version has breaking changes vs. training data, so read the relevant guide in `src/micro-commerce/node_modules/next/dist/docs/` before writing frontend code. `next dev` re-adds that AGENTS.md block — commit it rather than reverting it.
 
-## Feature Architecture (Backend)
+## Test layers
 
-Each feature follows vertical slice with these layers:
-```
-Features/{Name}/
-  {Name}Endpoints.cs              # Minimal API route mapping
-  Domain/
-    Entities/                     # Aggregate roots and entities
-    Events/                       # Domain events
-    ValueObjects/                 # Strongly typed IDs, value objects (Money, ProductName, etc.)
-  Application/
-    Commands/                     # Write operations (MediatR IRequest)
-    Queries/                      # Read operations (MediatR IRequest)
-    Consumers/                    # MassTransit message consumers (Ordering, Inventory)
-    Saga/                         # MassTransit state machines (Ordering only)
-    Specifications/               # Ardalis.Specification query specs (Catalog, Ordering)
-  Infrastructure/
-    {Name}DbContext.cs            # Owned DbContext (schema-isolated)
-    Configurations/               # EF Core entity configs
-    Migrations/                   # Feature-specific EF migrations
-    {Name}DataSeeder.cs           # Dev seed data (Catalog, Inventory only)
-```
+- **UnitTests** — pure tests of validators/domain types; reference the API project directly.
+- **FunctionalTests** — API in-process via `FastEndpoints.Testing` (`ApiFixture : AppFixture<Program>`) against Testcontainers Postgres and Redis. Tests derive from `TestBase<ApiFixture>` and call endpoints with typed helpers (`App.Client.POSTAsync<TEndpoint, TRequest, TResponse>`). JWT validation trusts a test signing key instead of Keycloak: `App.ClientFor(TestActor.Buyer())` / `TestActor.PlatformOperator()` gives a client for a fresh subject, and `TestIdentity.TokenFor(...)` mints custom (expired, wrongly signed, other-audience) tokens. `App.Client` is anonymous. The app and containers are shared across the run, so tests must not assume an empty database.
+- **IntegrationTests** — boot the full AppHost with `Aspire.Hosting.Testing` (assembly-level `AppHostFixture`, ephemeral resources) and hit the API over plain `HttpClient`. For real tokens, use the password grant against `KeycloakClient` with the `micro-commerce-tests` client and a seeded user.
+- **E2E** (`src/micro-commerce/e2e/`) — Playwright, Chromium only, through the browser against the whole app: real Keycloak sign-in, `proxy.ts` token forwarding and the API round trip. `playwright.config.ts`'s `webServer` runs `aspire run` from the repo root and waits for `http://localhost:3000`, reusing an already-running dev session. It needs the fixed ports (the realm only allows the `localhost:3000` redirect URI), so not `aspire run --isolated` or a bare `--EphemeralResources=true`, and locally it runs against dev data: make names unique per run. With `CI` set it never reuses a running app and starts `aspire run -- --EphemeralResources=true --FixedPorts=true` itself. The `setup` project signs in once as the seeded `buyer` and saves `playwright/.auth/buyer.json` as `storageState` for the other tests; a test that signs out must sign in on its own (`test.use({ storageState: { cookies: [], origins: [] } })` + `signInAsBuyer`), since signing out ends that Keycloak session. The Products endpoints are anonymous, so `api-proxy.spec.ts` (`page.request` against `/api/me`) is what pins token forwarding. Locators are role/label based (`getByRole`, `getByLabel`).
 
-## Key Patterns
+## CI
 
-- **CQRS:** Commands and queries via MediatR with pipeline behaviors (ValidationBehavior, ResultValidationBehavior)
-- **Domain Events:** Published via MassTransit after SaveChanges (DomainEventInterceptor)
-- **EF Core Interceptors:** AuditInterceptor (CreatedAt/UpdatedAt), ConcurrencyInterceptor (Version), SoftDeleteInterceptor (soft-delete), DomainEventInterceptor
-- **EF Core Model Conventions:** AuditableConvention, ConcurrencyTokenConvention, SoftDeletableConvention — auto-configure columns and global query filters (e.g., `WHERE is_deleted = false`)
-- **Strongly Typed IDs:** Vogen `[ValueObject<Guid>]` with EF Core + System.Text.Json conversions
-- **Schema-per-Feature:** All DbContexts share one `appdb` PostgreSQL database with separate schemas (catalog, cart, ordering, inventory, profiles, reviews, wishlists, outbox)
-- **MassTransit Outbox:** OutboxDbContext in `outbox` schema provides transactional messaging (inbox deduplication + outbox delivery)
-- **Checkout Saga:** CheckoutStateMachine orchestrates stock reservation -> payment -> confirm/fail with EF Core-persisted state
-- **Transport Switching:** MassTransit uses Azure Service Bus in Aspire/dev and RabbitMQ in Kubernetes (conditional in `Program.cs`)
-- **Circuit Breaker + Retry:** Global MassTransit config with exponential backoff [1s, 5s, 25s], circuit breaker at 15% failure rate
-- **Guest Cart:** Cookie-based buyer identity (`BuyerIdentity.GetOrCreateBuyerId`), merges with authenticated cart on login
-- **FluentResults:** Railway-oriented error handling in some handlers, processed by ResultValidationBehavior (returns 422 on failure)
-- **YARP Gateway:** Centralizes CORS, rate limiting (sliding window), auth, and `X-Request-ID` injection; frontend routes through Gateway, not directly to ApiService
-- **Aspire Topology:** PostgreSQL -> ApiService -> Gateway -> Frontend; frontend resolves API via `services__gateway__https__0` env var
+`.github/workflows/ci.yml` (GitHub Actions, on pushes to `master` and on pull requests) installs the toolchain from `mise.toml` with `jdx/mise-action`, so a version bump there is a CI bump too. Jobs: build and lint (`dotnet build`, `dotnet format --verify-no-changes`, frontend `lint` and `build`); unit, functional and integration tests as a matrix (one `dotnet test --project` each, on the runner's Docker); and E2E (`playwright install --with-deps chromium`, then `test:e2e`, uploading the report and traces on failure).
 
-## Testing
+`tests/Directory.Build.props` makes every test project an `Exe` with xUnit v3 + Shouldly and global `using Xunit; using Shouldly;`. Assertions use Shouldly.
 
-```bash
-# Unit + integration tests
-dotnet test src/MicroCommerce.ApiService.Tests
+## Agent skills
 
-# E2E tests (requires running Aspire stack)
-cd src/MicroCommerce.Web && npx playwright test
-```
+### Issue tracker
 
-- **Integration tests:** xUnit + Testcontainers (real PostgreSQL) + MassTransit TestFramework (in-memory bus)
-- **Test infra:** `ApiWebApplicationFactory` + `IntegrationTestBase` with shared container via `ICollectionFixture`
-- **Auth in tests:** `FakeAuthenticationHandler` injects claims from `X-Test-UserId` header
-- **DB isolation:** `ResetDatabase()` drops/recreates per-schema between tests
-- **Unit tests:** Domain aggregates, value objects, validators, saga logic
-- **E2E tests:** Playwright specs in `src/MicroCommerce.Web/e2e/` (critical-path, product-browsing, user-features)
+Issues live in GitHub Issues on `baotoq/micro-commerce` (via `gh`). See `docs/agents/issue-tracker.md`.
 
-## CI/CD
+### Triage labels
 
-- `.github/workflows/dotnet-test.yml` — runs unit + integration tests on push to master
-- `.github/workflows/container-images.yml` — builds and pushes Docker images on `master` pushes and `v*.*.*` tags
-- `.github/workflows/release.yml` — publishes NuGet package + Docker images on `v*.*.*` tags
-- `.github/dependabot.yml` — weekly NuGet and devcontainer dependency updates
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
-## Important Notes
+### Domain docs
 
-- The Aspire AppHost is the primary entry point for local development
-- Keycloak realm config lives in `src/MicroCommerce.AppHost/Realms/`
-- Frontend `.env` has auth secrets (AUTH_SECRET, KEYCLOAK_CLIENT_SECRET, KEYCLOAK_ISSUER)
-- Frontend reads gateway URL from Aspire-injected `services__gateway__*` env vars, exposed to client via `/api/config` route
-- OpenAPI docs available at `/openapi/v1.json` in development
-- Health endpoints: `/health` (readiness), `/alive` (liveness)
+Single-context: one root `CONTEXT.md` + `docs/adr/` (created lazily). See `docs/agents/domain.md`.

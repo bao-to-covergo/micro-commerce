@@ -3,6 +3,7 @@
 
 certs/
 .idea/
+.worktrees/
 
 # User-specific files
 *.suo
@@ -140,7 +141,7 @@ publish/
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml
-# TODO: Comment the next line if you want to checkin your web deploy settings 
+# TODO: Comment the next line if you want to checkin your web deploy settings
 # but database connection strings (with potential passwords) will be unencrypted
 #*.pubxml
 *.publishproj
@@ -242,3 +243,10 @@ _Pvt_Extensions
 # Verify
 *.received.*
 *.received/
+
+.omc/
+test-results/
+.playwright-mcp/
+qa/evidence/
+.claude/scheduled_tasks.lock
+.superpowers/
